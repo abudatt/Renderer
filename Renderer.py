@@ -1,10 +1,7 @@
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
-from tkinter import filedialog, messagebox
-import os
 import json
 import csv
-import webbrowser
+import os
+import streamlit as st
 
 # Helper function to convert frames to timecodes
 def frames_to_timecode(frame, fps):
@@ -15,23 +12,15 @@ def frames_to_timecode(frame, fps):
     return f"{hours:02}:{minutes:02}:{seconds:02}:{frames:02}"
 
 # Function to process the file
-def process_file():
-    file_path = filedialog.askopenfilename(
-        title="Select .clqtt File",
-        filetypes=[("CLQTT Files", "*.clqtt")]
-    )
-    if not file_path:
-        return
-
+def process_file(file):
     try:
         # Output file paths
-        base_name = os.path.splitext(file_path)[0]
+        base_name = os.path.splitext(file.name)[0]
         html_output = base_name + "_numbered.html"
         csv_output = base_name + "_annotations.csv"
 
         # Load the input .clqtt file
-        with open(file_path, 'r', encoding='utf-8') as file:
-            data = json.load(file)
+        data = json.load(file)
 
         # Extract meta information
         meta = data.get('meta', {})
@@ -56,15 +45,17 @@ def process_file():
             }
             subtitles.append(subtitle)
 
-        # Write CSV file for annotations (with utf-8-sig for proper Arabic support)
-        with open(csv_output, 'w', encoding='utf-8-sig', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            csv_writer.writerow(["Subtitle Number", "Subtitle Text", "Annotation"])
-            for subtitle in subtitles:
-                if subtitle["annotations"]:
-                    csv_writer.writerow([subtitle["number"], subtitle["text"], subtitle["annotations"]])
+        # Generate CSV content for annotations
+        csv_content = []
+        csv_content.append(["Subtitle Number", "Subtitle Text", "Annotation"])
+        for subtitle in subtitles:
+            if subtitle["annotations"]:
+                csv_content.append([subtitle["number"], subtitle["text"], subtitle["annotations"]])
 
-        # Write HTML file
+        # Write CSV file for download
+        csv_buffer = "\n".join(",".join(map(str, row)) for row in csv_content)
+
+        # Generate HTML content
         html_content = f'''<!DOCTYPE html>
 <html lang='en'>
 <head>
@@ -136,7 +127,6 @@ def process_file():
     </style>
 </head>
 <body>
-    <a href="{os.path.basename(csv_output)}" class="download-link" download>Download Annotations CSV</a>
 '''
 
         for subtitle in subtitles:
@@ -167,25 +157,37 @@ def process_file():
 </html>
 '''
 
-        with open(html_output, 'w', encoding='utf-8') as htmlfile:
-            htmlfile.write(html_content)
-
-        # Show confirmation and open options
-        ttk.Messagebox.show_info("Success", f"Files generated successfully:\n\nHTML: {html_output}\nCSV: {csv_output}")
+        return csv_buffer, html_content
 
     except Exception as e:
-        ttk.Messagebox.show_error("Error", f"An error occurred: {e}")
+        st.error(f"An error occurred: {e}")
+        return None, None
 
-# Create the GUI
-app = ttk.Window(themename="darkly")  # Choose a modern dark theme
-app.title("CLQTT to HTML & CSV Converter")
-app.geometry("500x300")
-app.resizable(False, False)
 
-label = ttk.Label(app, text="CLQTT to HTML & CSV Converter", font=("Arial", 16, "bold"))
-label.pack(pady=20)
+# Streamlit App
+st.title("CLQTT to HTML & CSV Converter")
 
-convert_button = ttk.Button(app, text="Select and Convert File", bootstyle="primary", command=process_file)
-convert_button.pack(pady=20)
+file = st.file_uploader("Select .clqtt File", type=["clqtt"])
 
-app.mainloop()
+if file:
+    if st.button("Convert File"):
+        csv_content, html_content = process_file(file)
+
+        if csv_content and html_content:
+            # Provide CSV download
+            st.download_button(
+                label="Download Annotations CSV",
+                data=csv_content,
+                file_name="annotations.csv",
+                mime="text/csv",
+            )
+
+            # Provide HTML download
+            st.download_button(
+                label="Download HTML",
+                data=html_content,
+                file_name="converted.html",
+                mime="text/html",
+            )
+
+            st.success("Conversion complete!")
