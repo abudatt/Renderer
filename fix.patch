@@ -1,0 +1,20 @@
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a//dev/null b/.gitignore
+index 0000000000000000000000000000000000000000..2c750ff2d6352c9a62cefa610993119e821651dd 100644
+--- a//dev/null
++++ b/.gitignore
+@@ -0,0 +1,11 @@
++__pycache__/
++*.py[cod]
++*.egg-info/
++dist/
++build/
++.pytest_cache/
++.streamlit/
++
++# Environment files
++.env
++*.clqtt
+ 
+EOF
+)
